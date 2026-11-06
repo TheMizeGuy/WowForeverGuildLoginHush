@@ -37,7 +37,7 @@ ns.OPTIONS = {
     {
         key = "muteSound",
         label = "Mute the login sound",
-        tooltip = "The sound the game plays when a guild member or friend comes online. It is one sound for both, so friends' logins go quiet too. Logging out plays no sound.",
+        tooltip = "The sound the game plays when a guild member or character friend comes online. It is one sound for both, so friends' logins go quiet too; logging out plays none. Battle.net friends' toasts have their own sound, which Options > Social > Online Friends / Offline Friends turn off.",
     },
 }
 
@@ -89,20 +89,25 @@ local function LooksLikeName(name)
 end
 ns.LooksLikeName = LooksLikeName
 
--- The forms a name can take in the roster and the friends list: as written and, when a realm is
--- attached, without it ("Zeus-Forever" and "Zeus"). The display name of an online line is added
--- when it differs from both. nil when the text is not a character name at all.
-local function Names(link, shown)
-    if not LooksLikeName(link) then
+local homeRealm -- GetNormalizedRealmName(), once the client knows it
+
+-- The forms a name can take in the roster and the friends list: as written and, when it carries
+-- the player's own realm, without it ("Zeus-Forever" and "Zeus"). A name from another realm keeps
+-- its realm, since character names are unique only per realm. nil when the text is not a
+-- character name at all.
+local function Names(name)
+    if not LooksLikeName(name) then
         return nil
     end
-    local names = { link }
-    local short = strmatch(link, "^([^%-]+)%-")
+    local names = { name }
+    local short, realm = strmatch(name, "^([^%-]+)%-(.+)$")
     if short then
-        names[#names + 1] = short
-    end
-    if shown and shown ~= link and shown ~= short and LooksLikeName(shown) then
-        names[#names + 1] = shown
+        if not homeRealm and GetNormalizedRealmName then
+            homeRealm = GetNormalizedRealmName()
+        end
+        if homeRealm and realm == homeRealm then
+            names[#names + 1] = short
+        end
     end
     return names
 end
@@ -170,12 +175,10 @@ local function SystemFilter(_, _, text)
         return memoHide
     end
     local hide = false
-    local link, shown
-    if onlinePattern then
-        link, shown = strmatch(text, onlinePattern)
-    end
+    -- The online line carries the name twice (link target and display); the first is enough.
+    local link = onlinePattern and strmatch(text, onlinePattern)
     if link then
-        local names = db.hideOnline == true and Names(link, shown)
+        local names = db.hideOnline == true and Names(link)
         hide = names ~= nil and names ~= false and IsGuildMember(names)
     else
         local name = offlinePattern and strmatch(text, offlinePattern)
@@ -195,9 +198,8 @@ local filtered = false
 
 local function UpdateFilter()
     local want = db ~= nil and (db.hideOnline or db.hideOffline) and (onlinePattern ~= nil or offlinePattern ~= nil)
-    local util = ChatFrameUtil
-    local add = util and util.AddMessageEventFilter or ChatFrame_AddMessageEventFilter
-    local remove = util and util.RemoveMessageEventFilter or ChatFrame_RemoveMessageEventFilter
+    local add = ChatFrameUtil and ChatFrameUtil.AddMessageEventFilter or ChatFrame_AddMessageEventFilter
+    local remove = ChatFrameUtil and ChatFrameUtil.RemoveMessageEventFilter or ChatFrame_RemoveMessageEventFilter
     if want and not filtered and add then
         add("CHAT_MSG_SYSTEM", SystemFilter)
         filtered = true
@@ -213,8 +215,10 @@ local function CanMute()
     return type(MuteSoundFile) == "function" and type(UnmuteSoundFile) == "function"
 end
 
--- A mute outlives /reload and relogging but not the client, so it is applied at every load. The
--- sound is only unmuted when this addon muted it, so a mute another addon set is left alone.
+-- A mute outlives /reload and relogging but not the client, and the engine may count mutes rather
+-- than keep one flag, so every load mutes at most once and PLAYER_LOGOUT (which /reload fires
+-- too) unmutes it again: the addon's mutes and unmutes always balance, and disabling the addon
+-- brings the sound back. The sound is only ever unmuted when this addon muted it.
 local muted = false
 
 local function ApplySound()
@@ -222,9 +226,18 @@ local function ApplySound()
         return
     end
     if db.muteSound then
-        MuteSoundFile(SOUND_FILE)
-        muted = true
+        if not muted then
+            MuteSoundFile(SOUND_FILE)
+            muted = true
+        end
     elseif muted then
+        UnmuteSoundFile(SOUND_FILE)
+        muted = false
+    end
+end
+
+local function ReleaseSound()
+    if muted and CanMute() then
         UnmuteSoundFile(SOUND_FILE)
         muted = false
     end
@@ -297,16 +310,18 @@ end
 
 function handlers.PLAYER_LOGIN()
     RequestRoster()
-    local friends = C_FriendList
-    if friends and friends.IsLegacyFriendSystemEnabled then
-        local ok, enabled = pcall(friends.IsLegacyFriendSystemEnabled)
-        if ok and not enabled then
-            FriendsReady() -- no character friends on this client: every line is a guild member's
+    if C_FriendList and C_FriendList.IsLegacyFriendSystemEnabled then
+        -- A definite false means this client has no character friends, so every line is a guild
+        -- member's. The call may return nothing before the friends list exists; that is not false.
+        local ok, enabled = pcall(C_FriendList.IsLegacyFriendSystemEnabled)
+        if ok and enabled == false then
+            friendsLoaded = true
+            memoText = nil
             return
         end
     end
-    if friends and friends.ShowFriends then
-        pcall(friends.ShowFriends)
+    if C_FriendList and C_FriendList.ShowFriends then
+        pcall(C_FriendList.ShowFriends)
     end
     -- The list normally arrives within a second. Without it every line would stay visible all
     -- session, so the wait ends after a while.
@@ -318,6 +333,7 @@ function handlers.PLAYER_LOGIN()
 end
 
 handlers.FRIENDLIST_UPDATE = FriendsReady
+handlers.PLAYER_LOGOUT = ReleaseSound
 
 function handlers.PLAYER_GUILD_UPDATE(unit)
     if unit == nil or unit == "player" then

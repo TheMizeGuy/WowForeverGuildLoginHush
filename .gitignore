@@ -8,6 +8,9 @@
 .DS_Store
 Thumbs.db
 
+# Python bytecode from tests/audit_globals.py
+__pycache__/
+
 # packaging output
 /dist/
 *.zip

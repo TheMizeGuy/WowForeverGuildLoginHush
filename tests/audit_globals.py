@@ -139,7 +139,7 @@ def main():
         fetch()
     if not os.path.isdir(UI) or not os.path.exists(STRINGS):
         print("  SKIP  no Forever UI source or global strings in .cache (run tests/audit_globals.py --fetch)")
-        return 0
+        return 2
     version = read(os.path.join(UI, "version.txt")).strip() if os.path.exists(os.path.join(UI, "version.txt")) else "?"
     if version != BUILD:
         print(f"  WARN  .cache/wow-ui-source-forever is build {version}, the audit expects {BUILD}")
@@ -195,6 +195,12 @@ def main():
     for namespace, function in sorted(set(re.findall(r"\b(C_\w+)\.(\w+)", code))):
         full = f"{namespace}.{function}"
         check("functions", full in documented or f"{full}(" in lua_source, f"function {full}")
+    # Fields of Blizzard's Lua-side tables the addon reads: defined as a function or assigned in
+    # a loaded file.
+    for table_name, field in sorted(set(re.findall(r"\b(Settings|ChatFrameUtil)\.(\w+)", code))):
+        full = f"{table_name}.{field}"
+        check("functions", re.search(rf"^function {re.escape(full)}\s*\(|^{re.escape(full)}\s*=", lua_source, re.M) is not None,
+              f"field {full}")
     for enum, value in sorted(set(re.findall(r"\bEnum\.(\w+)\.(\w+)", code))):
         check("enum values", f"{enum}.{value}" in enums, f"enum value Enum.{enum}.{value}")
     used_events = set(re.findall(r"\bhandlers\.([A-Z][A-Z0-9_]+)\b", code))

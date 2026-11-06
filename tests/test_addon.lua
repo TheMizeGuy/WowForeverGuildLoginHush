@@ -1,5 +1,6 @@
 -- The whole addon under the fake client in tests/wow.lua: which lines are hidden for whom, the
--- friends-list and roster timing, the sound mute, the settings page and the slash commands.
+-- friends-list and roster timing, the sound mute across reloads, the settings page and the slash
+-- commands.
 
 local T = dofile("tests/t.lua")
 local wow = dofile("tests/wow.lua")
@@ -10,6 +11,15 @@ local function Slash(text)
     SlashCmdList.GUILDLOGINMUTE(text)
 end
 
+-- Each scenario starts from a freshly started client.
+local test = T.test
+T.test = function(name, fn)
+    test(name, function()
+        wow.Restart()
+        fn()
+    end)
+end
+
 T.test("defaults hide a guild member's online and offline lines and mute the sound", function()
     local ns = wow.Load()
     wow.roster.Zeus = true
@@ -17,6 +27,7 @@ T.test("defaults hide a guild member's online and offline lines and mute the sou
     T.eq(wow.Offline("Zeus"), false, "offline line hidden")
     T.same(ns.db, { hideOnline = true, hideOffline = true, muteSound = true })
     T.same(wow.soundCalls, { "mute " .. SOUND })
+    T.eq(wow.MuteCount(SOUND), 1)
     T.eq(wow.rosterRequests, 1, "the roster is requested at login")
     T.eq(wow.friendRequests, 1, "and so is the friends list")
 end)
@@ -80,7 +91,17 @@ T.test("a client without character friends needs no friends list", function()
     T.eq(wow.Online("Hera"), false, "every line is a guild member's")
 end)
 
-T.test("names with a realm match the roster and the friends list in either form", function()
+T.test("no answer about the friend system is not 'no friends': the list is still requested and waited for", function()
+    wow.Load({ friends = false, setup = function() wow.legacyFriends = nil end })
+    T.eq(wow.friendRequests, 1)
+    wow.friends.Hera = true
+    T.eq(wow.Online("Hera"), true, "shown while the list may still be on its way")
+    wow.Fire("FRIENDLIST_UPDATE")
+    T.eq(wow.Online("Hera"), true, "a friend")
+    T.eq(wow.Online("Zeus"), false, "not a friend")
+end)
+
+T.test("names with the player's own realm match the roster and the friends list in either form", function()
     wow.Load()
     wow.roster["Zeus-Forever"] = true
     T.eq(wow.Online("Zeus-Forever", "Zeus"), false, "full name in the roster")
@@ -88,10 +109,32 @@ T.test("names with a realm match the roster and the friends list in either form"
     wow.roster = { Ares = true }
     T.eq(wow.Online("Ares-Forever", "Ares"), false, "short name in the roster")
     wow.roster = {}
-    wow.friends["Hera-Area-52"] = true
-    T.eq(wow.Online("Hera-Area-52", "Hera"), true, "a cross-realm friend stays")
     wow.friends = { Apollo = true }
     T.eq(wow.Offline("Apollo-Forever"), true, "a friend listed without the realm stays")
+end)
+
+T.test("a name from another realm is never shortened: a cross-realm friend who shares a guildmate's name stays", function()
+    local ns = wow.Load()
+    wow.roster.Zeus = true
+    wow.friends["Zeus-Otherrealm"] = true
+    T.same(ns.Names("Zeus-Otherrealm"), { "Zeus-Otherrealm" })
+    T.same(ns.Names("Zeus-Forever"), { "Zeus-Forever", "Zeus" })
+    T.eq(wow.Online("Zeus-Otherrealm", "Zeus"), true)
+    T.eq(wow.Offline("Zeus-Otherrealm"), true)
+    T.eq(wow.Online("Zeus"), false, "the guildmate of that name is still hidden")
+    wow.friends = {}
+    wow.roster = { ["Hera-Otherrealm"] = true }
+    T.eq(wow.Online("Hera-Otherrealm", "Hera"), false, "a cross-realm guild member is found under the full name")
+end)
+
+T.test("the realm name is read once the client knows it", function()
+    wow.Load({ setup = function() GetNormalizedRealmName = function() return nil end end })
+    wow.roster.Zeus = true
+    wow.friends["Zeus-Forever"] = true
+    T.eq(wow.Online("Zeus-Forever", "Zeus"), true, "no realm known yet: the full name is a friend, not shortened")
+    GetNormalizedRealmName = function() return "Forever" end
+    wow.friends = {}
+    T.eq(wow.Online("Zeus-Forever", "Zeus"), false)
 end)
 
 T.test("each line type has its own switch", function()
@@ -125,12 +168,52 @@ T.test("the sound follows its switch and is only unmuted when this addon muted i
     T.same(wow.soundCalls, {}, "nothing muted or unmuted at load when the switch is off")
     ns.SetOption("muteSound", true)
     T.same(wow.soundCalls, { "mute " .. SOUND })
-    T.eq(wow.muted[SOUND], true)
+    T.eq(wow.MuteCount(SOUND), 1)
     ns.SetOption("muteSound", false)
     T.same(wow.soundCalls, { "mute " .. SOUND, "unmute " .. SOUND })
-    T.eq(wow.muted[SOUND], nil)
+    T.eq(wow.MuteCount(SOUND), 0)
     ns.SetOption("muteSound", false)
     T.eq(#wow.soundCalls, 2, "turning it off twice unmutes once")
+end)
+
+T.test("turning the sound on while it is on mutes once, so off still unmutes", function()
+    local ns = wow.Load()
+    ns.SetOption("muteSound", true)
+    wow.settings[3]:SetValueToDefault() -- the Defaults button notifies again with the same value
+    T.same(wow.soundCalls, { "mute " .. SOUND })
+    ns.SetOption("muteSound", false)
+    T.eq(wow.MuteCount(SOUND), 0)
+end)
+
+T.test("a /reload re-applies the mute without stacking it, and off after a reload unmutes", function()
+    wow.Load()
+    T.eq(wow.MuteCount(SOUND), 1)
+    wow.Reload()
+    T.eq(wow.MuteCount(SOUND), 1, "the logout unmute and the load mute balance")
+    T.same(wow.soundCalls, { "mute " .. SOUND }, "one mute per load")
+    wow.Reload()
+    Slash("sound off")
+    T.eq(wow.MuteCount(SOUND), 0)
+    wow.Reload()
+    T.eq(wow.MuteCount(SOUND), 0, "the switch is remembered: nothing muted")
+    T.same(wow.soundCalls, {})
+end)
+
+T.test("logging out, or disabling the addon and reloading, gives the sound back", function()
+    wow.Load()
+    T.eq(wow.MuteCount(SOUND), 1)
+    wow.Logout()
+    T.eq(wow.MuteCount(SOUND), 0, "the addon's mute is undone when the UI unloads")
+    wow.Logout()
+    T.eq(wow.MuteCount(SOUND), 0, "and only once")
+end)
+
+T.test("a fresh client start mutes again from the saved setting", function()
+    wow.Load()
+    wow.Logout()
+    wow.Restart()
+    wow.Load({ keepDB = true })
+    T.eq(wow.MuteCount(SOUND), 1)
 end)
 
 T.test("a saved mute is applied again at every load", function()
@@ -145,6 +228,7 @@ T.test("a client without MuteSoundFile loads, hides lines and says why the sound
     T.eq(wow.Online("Zeus"), false)
     Slash("status")
     T.ok(wow.Printed("no MuteSoundFile"))
+    wow.Logout()
 end)
 
 T.test("saved settings of the wrong type fall back to the defaults", function()
@@ -180,14 +264,9 @@ T.test("only character names count, accented letters and realms included", funct
     T.eq(ns.LooksLikeName(""), false)
     T.eq(ns.LooksLikeName("-Forever"), false)
     T.eq(ns.LooksLikeName("Zeus-Argent Dawn"), false)
-    T.same(ns.Names("Zeus-Forever", "Zeus"), { "Zeus-Forever", "Zeus" })
-    T.same(ns.Names("Zeus", "Zeus"), { "Zeus" })
-    T.same(ns.Names("Zeus-Forever", "Zeus (away)"), { "Zeus-Forever", "Zeus" }, "a display name that is no name is dropped")
+    T.same(ns.Names("Zeus"), { "Zeus" })
     T.eq(ns.Names("Guild: Zeus"), nil)
     T.eq(wow.System("Åsgård has gone offline."), false, "an accented guild member is hidden")
-    wow.friends.Zeuslink = true
-    wow.roster.Zeus = true
-    T.eq(wow.System("|Hplayer:Zeuslink|h[Zeus]|h has come online."), false, "the display name is looked up too")
 end)
 
 T.test("secret or non-string text is left alone without errors", function()
@@ -254,10 +333,11 @@ T.test("slash commands toggle, set and report; /glm opens the page", function()
     T.eq(wow.openedCategory, 77)
     Slash("online off")
     T.eq(ns.db.hideOnline, false)
-    T.eq(wow.settings[1]:GetValue(), false, "changed through the page's setting")
+    T.eq(wow.settings[1].setValueCalls, 1, "changed through the page's setting, so an open page shows it")
     T.ok(wow.Printed("Hide \"has come online\": off"))
     Slash("ONLINE")
     T.eq(ns.db.hideOnline, true, "no argument toggles")
+    T.eq(wow.settings[1].setValueCalls, 2)
     Slash("offline off")
     T.eq(ns.db.hideOffline, false)
     Slash("sound off")
@@ -294,8 +374,8 @@ T.test("joining a guild requests the roster and starts hiding", function()
     T.eq(ns.IsGuildMember({ "Zeus" }), true)
 end)
 
-T.test("the filter answers every chat window alike and the memo never goes stale", function()
-    local ns = wow.Load()
+T.test("the filter answers every chat window alike with one lookup", function()
+    wow.Load()
     wow.roster.Zeus = true
     local calls = 0
     local exists = C_GuildInfo.MemberExistsByName
@@ -305,9 +385,31 @@ T.test("the filter answers every chat window alike and the memo never goes stale
     end
     T.eq(wow.Online("Zeus"), false)
     T.eq(calls, 1, "one roster lookup for two chat windows")
+end)
+
+T.test("the memo never outlives its frame: a later line is judged afresh", function()
+    wow.Load()
+    wow.roster.Zeus = true
+    T.eq(wow.Online("Zeus"), false)
+    wow.roster = {}
+    wow.friends.Zeus = true -- no event fires for that
+    T.eq(wow.Online("Zeus"), true, "the next frame's line sees the new state")
+    T.eq(wow.Online("Zeus", nil, true), true, "the same text again in that frame is answered from the memo")
+end)
+
+T.test("a change within a frame drops the memo: settings, the friends list and the guild", function()
+    local ns = wow.Load({ friends = false })
+    wow.roster.Zeus = true
+    T.eq(wow.Online("Zeus"), false)
     ns.SetOption("hideOnline", false)
-    T.eq(wow.Online("Zeus"), true, "a settings change is seen by the next line")
-    T.eq(wow.Offline("Zeus"), false)
+    T.eq(wow.Online("Zeus", nil, true), true, "a setting changed in the same frame")
+    ns.SetOption("hideOnline", true)
+    T.eq(wow.Online("Hera"), true, "unknown while the friends list is out")
+    wow.Fire("FRIENDLIST_UPDATE")
+    T.eq(wow.Online("Hera", nil, true), false, "the friends list arrived in the same frame")
+    wow.inGuild = false
+    wow.Fire("PLAYER_GUILD_UPDATE", "player")
+    T.eq(wow.Online("Hera", nil, true), true, "left the guild in the same frame")
 end)
 
 T.test("the fallback is only used while in a guild, and the roster wins over the friends list", function()

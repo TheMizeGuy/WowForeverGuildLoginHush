@@ -41,18 +41,20 @@ function wow.NewFrame()
 end
 
 -- A Settings object the way Blizzard's AddOnSettingMixin behaves for addons: it default-initialises
--- the saved table, SetValue writes the table and notifies the value-changed callback.
+-- the saved table, and SetValue writes the table and notifies the value-changed callback (as the
+-- checkbox control on the page is notified), even when the value did not change.
 local function NewSetting(category, variable, key, tbl, varType, name, default)
     if tbl[key] == nil then
         tbl[key] = default
     end
-    local setting = { category = category, variable = variable, key = key, tbl = tbl, varType = varType, name = name, default = default }
+    local setting = { category = category, variable = variable, key = key, tbl = tbl, varType = varType, name = name, default = default, setValueCalls = 0 }
     function setting:SetValueChangedCallback(callback) self.callback = callback end
     function setting:GetValue() return self.tbl[self.key] end
     function setting:SetValue(value)
         if type(value) ~= self.varType then
             error(("setting %s: expected a %s, got %s"):format(self.name, self.varType, type(value)))
         end
+        self.setValueCalls = self.setValueCalls + 1
         self.tbl[self.key] = value
         if self.callback then
             self.callback(self, value)
@@ -62,7 +64,20 @@ local function NewSetting(category, variable, key, tbl, varType, name, default)
     return setting
 end
 
-function wow.Reset()
+-- The engine's mute state outlives /reload and relogging (wow.Load) but not the client
+-- (wow.Restart). It counts mutes per file, the stricter of the two semantics the engine may have:
+-- a count that balances is right under both.
+wow.engineMutes = {}
+
+function wow.Restart()
+    wow.engineMutes = {}
+end
+
+function wow.MuteCount(id)
+    return wow.engineMutes[id] or 0
+end
+
+function wow.Reset(options)
     wow.now = 1000
     wow.timers = {}
     wow.eventFrames = {}
@@ -74,8 +89,7 @@ function wow.Reset()
     wow.friends = {} -- [name] = true for character friends
     wow.rosterRequests = 0
     wow.friendRequests = 0
-    wow.legacyFriends = true
-    wow.muted = {} -- [fileDataID] = true while muted
+    wow.legacyFriends = true -- what IsLegacyFriendSystemEnabled returns; nil before the list exists
     wow.soundCalls = {} -- "mute 567518", "unmute 567518" in order
     wow.hasMuteApi = true
     wow.settings = {} -- Settings objects in registration order
@@ -86,7 +100,9 @@ function wow.Reset()
     for key, value in pairs(STRINGS) do
         G[key] = value
     end
-    G.GuildLoginMuteDB = nil
+    if not options.keepDB then
+        G.GuildLoginMuteDB = nil
+    end
     G.SlashCmdList = {}
     G.print = function(...)
         local parts = {}
@@ -99,6 +115,7 @@ function wow.Reset()
         return wow.NewFrame()
     end
     G.GetTime = function() return wow.now end
+    G.GetNormalizedRealmName = function() return "Forever" end
     G.canaccessvalue = function(...)
         for i = 1, select("#", ...) do
             if select(i, ...) == wow.SECRET then
@@ -141,11 +158,11 @@ function wow.Reset()
         end,
     }
     G.MuteSoundFile = function(id)
-        wow.muted[id] = true
+        wow.engineMutes[id] = (wow.engineMutes[id] or 0) + 1
         wow.soundCalls[#wow.soundCalls + 1] = "mute " .. tostring(id)
     end
     G.UnmuteSoundFile = function(id)
-        wow.muted[id] = nil
+        wow.engineMutes[id] = math.max((wow.engineMutes[id] or 0) - 1, 0)
         wow.soundCalls[#wow.soundCalls + 1] = "unmute " .. tostring(id)
     end
     G.Settings = {
@@ -169,10 +186,11 @@ function wow.Reset()
 end
 
 -- Loads the addon's files in TOC order with a fresh namespace, then logs in and, unless told
--- otherwise, delivers the friends list.
+-- otherwise, delivers the friends list. options.keepDB keeps the saved settings of the previous
+-- load, as a /reload or relog does; call wow.Logout() first for the events the client fires then.
 function wow.Load(options)
     options = options or {}
-    wow.Reset()
+    wow.Reset(options)
     if options.setup then
         options.setup()
     end
@@ -193,6 +211,19 @@ function wow.Load(options)
         end
     end
     return ns
+end
+
+-- What the client fires when the UI unloads: logout, relog and /reload alike.
+function wow.Logout()
+    wow.Fire("PLAYER_LOGOUT")
+end
+
+-- A /reload: the UI unloads and loads again with the same saved settings.
+function wow.Reload(options)
+    wow.Logout()
+    options = options or {}
+    options.keepDB = true
+    return wow.Load(options)
 end
 
 function wow.Fire(event, ...)
@@ -221,9 +252,12 @@ function wow.Advance(seconds)
 end
 
 -- Delivers a system line through the CHAT_MSG_SYSTEM filters of every chat window, the way
--- ChatFrameUtil.ProcessMessageEventFilters does; returns true if it stays visible.
-function wow.System(text)
-    wow.now = wow.now + 0.01
+-- ChatFrameUtil.ProcessMessageEventFilters does; returns true if it stays visible. Each line
+-- arrives in a later frame unless sameFrame is set.
+function wow.System(text, sameFrame)
+    if not sameFrame then
+        wow.now = wow.now + 0.01
+    end
     local shown = false
     for _, frame in ipairs(wow.chat) do
         local discard = false
@@ -238,12 +272,16 @@ function wow.System(text)
     return shown
 end
 
-function wow.Online(link, shown)
-    return wow.System(STRINGS.ERR_FRIEND_ONLINE_SS:format(link, shown or link:match("^([^%-]+)") or link))
+function wow.OnlineText(link, shown)
+    return STRINGS.ERR_FRIEND_ONLINE_SS:format(link, shown or link:match("^([^%-]+)") or link)
 end
 
-function wow.Offline(name)
-    return wow.System(STRINGS.ERR_FRIEND_OFFLINE_S:format(name))
+function wow.Online(link, shown, sameFrame)
+    return wow.System(wow.OnlineText(link, shown), sameFrame)
+end
+
+function wow.Offline(name, sameFrame)
+    return wow.System(STRINGS.ERR_FRIEND_OFFLINE_S:format(name), sameFrame)
 end
 
 function wow.Printed(needle)
