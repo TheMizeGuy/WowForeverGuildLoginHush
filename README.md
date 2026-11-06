@@ -62,7 +62,8 @@ the sound back.
 ## Install
 
 Get the zip from the [GitHub releases](https://github.com/TheMizeGuy/WowForeverGuildLoginHush/releases)
-or from CurseForge, and copy the `GuildLoginHush` folder into the Forever client's AddOns directory:
+or from [CurseForge](https://www.curseforge.com/wow/addons/wow-forever-guild-login-hush), and copy
+the `GuildLoginHush` folder into the Forever client's AddOns directory:
 
 ```
 C:\Program Files (x86)\World of Warcraft\_forever_\Interface\AddOns\GuildLoginHush
