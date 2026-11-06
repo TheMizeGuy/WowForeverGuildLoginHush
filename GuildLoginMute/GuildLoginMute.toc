@@ -1,0 +1,12 @@
+## Interface: 16001
+## Title: WoW Forever Guild Login Mute
+## Notes: Hides the "has come online" and "has gone offline" chat lines about guild members and mutes the login sound. Each is its own setting; /glm opens them.
+## Author: TheMizeGuy
+## Version: 1.0.0
+## Category: Chat & Communication
+## IconTexture: Interface\Icons\INV_Misc_Bell_01
+## SavedVariables: GuildLoginMuteDB
+## AddonCompartmentFunc: GuildLoginMute_OnAddonCompartmentClick
+
+GuildLoginMute.lua
+Options.lua
