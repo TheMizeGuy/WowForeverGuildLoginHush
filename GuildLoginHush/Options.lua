@@ -1,5 +1,5 @@
--- WoW Forever Guild Login Mute: the settings page (Esc > Options > AddOns > Guild Login Mute, or
--- /glm). Three checkboxes on Blizzard's vertical layout. The page writes straight into the saved
+-- WoW Forever Guild Login Hush: the settings page (Esc > Options > AddOns > Guild Login Hush, or
+-- /glh). Three checkboxes on Blizzard's vertical layout. The page writes straight into the saved
 -- settings table; each change is applied through ns.OptionChanged.
 
 local _, ns = ...
@@ -13,9 +13,9 @@ function ns.RegisterSettings(db)
         and Settings.CreateCheckbox and Settings.RegisterAddOnCategory) then
         return
     end
-    category = Settings.RegisterVerticalLayoutCategory("Guild Login Mute")
+    category = Settings.RegisterVerticalLayoutCategory("Guild Login Hush")
     for _, option in ipairs(ns.OPTIONS) do
-        local variable = "GUILDLOGINMUTE_" .. option.key:upper()
+        local variable = "GUILDLOGINHUSH_" .. option.key:upper()
         local setting = Settings.RegisterAddOnSetting(category, variable, option.key, db, Settings.VarType.Boolean,
             option.label, ns.DEFAULTS[option.key])
         setting:SetValueChangedCallback(function()
@@ -40,7 +40,7 @@ end
 
 function ns.OpenOptions()
     if not category then
-        SlashCmdList.GUILDLOGINMUTE("status")
+        SlashCmdList.GUILDLOGINHUSH("status")
         return
     end
     Settings.OpenToCategory(category:GetID())

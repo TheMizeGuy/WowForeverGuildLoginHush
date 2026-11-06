@@ -25,7 +25,7 @@ import sys
 import urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ADDON = os.path.join(ROOT, "GuildLoginMute")
+ADDON = os.path.join(ROOT, "GuildLoginHush")
 CACHE = os.path.join(ROOT, ".cache")
 UI = os.path.join(CACHE, "wow-ui-source-forever")
 ADDONS = os.path.join(UI, "Interface", "AddOns")
@@ -43,7 +43,7 @@ select setmetatable tonumber tostring type unpack xpcall math string table corou
 ENGINE = {"UIParent", "WorldFrame", "SlashCmdList"}
 # Engine functions neither documented nor called by Blizzard's UI. MuteSoundFile and
 # UnmuteSoundFile (added in 8.2) are what the Guild Spam Silencer addon uses on the 12.x retail
-# client; the addon only calls them when they exist and reports their absence in /glm status.
+# client; the addon only calls them when they exist and reports their absence in /glh status.
 ENGINE |= {"MuteSoundFile", "UnmuteSoundFile"}
 # Lua functions the WoW client adds to the global environment.
 WOW_LUA = set("""
@@ -174,7 +174,7 @@ def main():
         global_strings = {row["BaseTag"] for row in csv.DictReader(handle)}
 
     reads, writes, code = set(), set(), ""
-    toc = read(os.path.join(ADDON, "GuildLoginMute.toc"))
+    toc = read(os.path.join(ADDON, "GuildLoginHush.toc"))
     for path in [os.path.join(ADDON, n) for n in re.findall(r"^(\w+\.lua)$", toc, re.M)]:
         r, w = bytecode_globals(path)
         reads |= r

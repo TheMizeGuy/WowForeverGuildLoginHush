@@ -4,7 +4,7 @@
 
 local wow = {}
 
-local ADDON_DIR = (os.getenv("ADDON_DIR") or "GuildLoginMute") .. "/"
+local ADDON_DIR = (os.getenv("ADDON_DIR") or "GuildLoginHush") .. "/"
 
 -- enUS global strings the addon reads, as the Forever 1.60.1 client's string table has them.
 local STRINGS = {
@@ -101,7 +101,7 @@ function wow.Reset(options)
         G[key] = value
     end
     if not options.keepDB then
-        G.GuildLoginMuteDB = nil
+        G.GuildLoginHushDB = nil
     end
     G.SlashCmdList = {}
     G.print = function(...)
@@ -199,11 +199,11 @@ function wow.Load(options)
     end
     local ns = {}
     wow.ns = ns
-    local toc = assert(io.open(ADDON_DIR .. "GuildLoginMute.toc")):read("*a")
+    local toc = assert(io.open(ADDON_DIR .. "GuildLoginHush.toc")):read("*a")
     for file in toc:gmatch("\n([%w_]+%.lua)") do
-        assert(loadfile(ADDON_DIR .. file))("GuildLoginMute", ns)
+        assert(loadfile(ADDON_DIR .. file))("GuildLoginHush", ns)
     end
-    wow.Fire("ADDON_LOADED", "GuildLoginMute")
+    wow.Fire("ADDON_LOADED", "GuildLoginHush")
     if options.login ~= false then
         wow.Fire("PLAYER_LOGIN")
         if options.friends ~= false then

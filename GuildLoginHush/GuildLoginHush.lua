@@ -1,7 +1,7 @@
--- WoW Forever Guild Login Mute
+-- WoW Forever Guild Login Hush
 -- Hides the "has come online" and "has gone offline" chat lines about guild members and mutes the
--- sound the client plays when someone comes online. Each is its own setting (/glm, or Esc >
--- Options > AddOns > Guild Login Mute).
+-- sound the client plays when someone comes online. Each is its own setting (/glh, or Esc >
+-- Options > AddOns > Guild Login Hush).
 --
 -- Both lines are system messages built from ERR_FRIEND_ONLINE_SS and ERR_FRIEND_OFFLINE_S, the
 -- same for friends and guild members, so the name in a line is checked against the guild roster
@@ -18,7 +18,7 @@ local strmatch, strgsub, strfind = string.match, string.gsub, string.find
 
 local SOUND_FILE = 567518 -- FriendJoinGame (sound kit 3332) on the Forever 1.60.1 client
 local FRIENDS_WAIT = 15 -- seconds after login to stop waiting for the friends list
-local PREFIX = "|cff66ccff[Guild Login Mute]|r "
+local PREFIX = "|cff66ccff[Guild Login Hush]|r "
 
 ns.DEFAULTS = { hideOnline = true, hideOffline = true, muteSound = true }
 
@@ -41,7 +41,7 @@ ns.OPTIONS = {
     },
 }
 
-local db -- GuildLoginMuteDB, once loaded
+local db -- GuildLoginHushDB, once loaded
 
 local function Print(message)
     print(PREFIX .. message)
@@ -246,8 +246,8 @@ end
 -- Settings -----------------------------------------------------------------------------------------
 
 local function LoadSettings()
-    local saved = type(GuildLoginMuteDB) == "table" and GuildLoginMuteDB or {}
-    GuildLoginMuteDB = saved
+    local saved = type(GuildLoginHushDB) == "table" and GuildLoginHushDB or {}
+    GuildLoginHushDB = saved
     for key, default in pairs(ns.DEFAULTS) do
         if type(saved[key]) ~= "boolean" then
             saved[key] = default
@@ -373,16 +373,16 @@ end
 
 local function PrintHelp()
     Print("commands:")
-    print("  /glm                   open the settings")
-    print("  /glm online [on|off]   hide \"has come online\" lines about guild members")
-    print("  /glm offline [on|off]  hide \"has gone offline\" lines about guild members")
-    print("  /glm sound [on|off]    mute the login sound")
-    print("  /glm status            show the current settings")
+    print("  /glh                   open the settings")
+    print("  /glh online [on|off]   hide \"has come online\" lines about guild members")
+    print("  /glh offline [on|off]  hide \"has gone offline\" lines about guild members")
+    print("  /glh sound [on|off]    mute the login sound")
+    print("  /glh status            show the current settings")
 end
 
-SLASH_GUILDLOGINMUTE1 = "/glm"
-SLASH_GUILDLOGINMUTE2 = "/guildloginmute"
-SlashCmdList.GUILDLOGINMUTE = function(message)
+SLASH_GUILDLOGINHUSH1 = "/glh"
+SLASH_GUILDLOGINHUSH2 = "/guildhush"
+SlashCmdList.GUILDLOGINHUSH = function(message)
     local command, rest = strmatch(message or "", "^%s*(%S*)%s*(%S*)")
     command, rest = command:lower(), rest:lower()
     local key = KEYS[command]
@@ -414,6 +414,6 @@ SlashCmdList.GUILDLOGINMUTE = function(message)
 end
 
 -- Addon compartment (the addons button by the minimap).
-function GuildLoginMute_OnAddonCompartmentClick()
-    SlashCmdList.GUILDLOGINMUTE("")
+function GuildLoginHush_OnAddonCompartmentClick()
+    SlashCmdList.GUILDLOGINHUSH("")
 end

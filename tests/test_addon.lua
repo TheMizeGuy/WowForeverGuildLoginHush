@@ -8,7 +8,7 @@ local wow = dofile("tests/wow.lua")
 local SOUND = 567518
 
 local function Slash(text)
-    SlashCmdList.GUILDLOGINMUTE(text)
+    SlashCmdList.GUILDLOGINHUSH(text)
 end
 
 -- Each scenario starts from a freshly started client.
@@ -164,7 +164,7 @@ T.test("with both line switches off the filter is gone, and it comes back exactl
 end)
 
 T.test("the sound follows its switch and is only unmuted when this addon muted it", function()
-    local ns = wow.Load({ setup = function() GuildLoginMuteDB = { muteSound = false } end })
+    local ns = wow.Load({ setup = function() GuildLoginHushDB = { muteSound = false } end })
     T.same(wow.soundCalls, {}, "nothing muted or unmuted at load when the switch is off")
     ns.SetOption("muteSound", true)
     T.same(wow.soundCalls, { "mute " .. SOUND })
@@ -217,7 +217,7 @@ T.test("a fresh client start mutes again from the saved setting", function()
 end)
 
 T.test("a saved mute is applied again at every load", function()
-    wow.Load({ setup = function() GuildLoginMuteDB = { muteSound = true, hideOnline = false, hideOffline = false } end })
+    wow.Load({ setup = function() GuildLoginHushDB = { muteSound = true, hideOnline = false, hideOffline = false } end })
     T.same(wow.soundCalls, { "mute " .. SOUND })
     T.eq(wow.filters.CHAT_MSG_SYSTEM, nil, "no filter while both line switches are off")
 end)
@@ -232,11 +232,11 @@ T.test("a client without MuteSoundFile loads, hides lines and says why the sound
 end)
 
 T.test("saved settings of the wrong type fall back to the defaults", function()
-    local ns = wow.Load({ setup = function() GuildLoginMuteDB = { hideOnline = "yes", hideOffline = false, muteSound = 1, extra = 5 } end })
+    local ns = wow.Load({ setup = function() GuildLoginHushDB = { hideOnline = "yes", hideOffline = false, muteSound = 1, extra = 5 } end })
     T.eq(ns.db.hideOnline, true)
     T.eq(ns.db.hideOffline, false)
     T.eq(ns.db.muteSound, true)
-    T.eq(GuildLoginMuteDB, ns.db, "the saved table is the live one")
+    T.eq(GuildLoginHushDB, ns.db, "the saved table is the live one")
     T.eq(ns.db.extra, 5, "unknown keys are left alone")
 end)
 
@@ -313,10 +313,10 @@ T.test("the settings page registers three checkboxes that write the saved table"
     T.eq(#wow.settings, 3)
     T.eq(#wow.checkboxes, 3)
     T.eq(wow.registeredCategory, wow.category)
-    T.eq(wow.category.name, "Guild Login Mute")
+    T.eq(wow.category.name, "Guild Login Hush")
     T.same({ wow.settings[1].key, wow.settings[2].key, wow.settings[3].key }, { "hideOnline", "hideOffline", "muteSound" })
     T.eq(wow.settings[1].tbl, ns.db, "the page writes into the live saved table")
-    T.eq(wow.settings[3].variable, "GUILDLOGINMUTE_MUTESOUND")
+    T.eq(wow.settings[3].variable, "GUILDLOGINHUSH_MUTESOUND")
     wow.roster.Zeus = true
     wow.settings[1]:SetValue(false) -- a click on the page
     T.eq(ns.db.hideOnline, false)
@@ -327,7 +327,7 @@ T.test("the settings page registers three checkboxes that write the saved table"
     T.eq(wow.Online("Zeus"), false)
 end)
 
-T.test("slash commands toggle, set and report; /glm opens the page", function()
+T.test("slash commands toggle, set and report; /glh opens the page", function()
     local ns = wow.Load()
     Slash("")
     T.eq(wow.openedCategory, 77)
@@ -346,14 +346,14 @@ T.test("slash commands toggle, set and report; /glm opens the page", function()
     Slash("sound on")
     T.eq(wow.soundCalls[3], "mute " .. SOUND)
     Slash("sound maybe")
-    T.ok(wow.Printed("/glm sound [on|off]"), "bad argument prints the help")
+    T.ok(wow.Printed("/glh sound [on|off]"), "bad argument prints the help")
     Slash("help")
-    T.ok(wow.Printed("/glm status"))
-    GuildLoginMute_OnAddonCompartmentClick()
+    T.ok(wow.Printed("/glh status"))
+    GuildLoginHush_OnAddonCompartmentClick()
     T.eq(wow.openedCategory, 77)
 end)
 
-T.test("without the Settings API the slash commands still work and /glm prints the status", function()
+T.test("without the Settings API the slash commands still work and /glh prints the status", function()
     local ns = wow.Load({ setup = function() Settings = nil end })
     Slash("")
     T.ok(wow.Printed("Hide \"has come online\": on"))

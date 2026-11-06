@@ -16,22 +16,22 @@ skipped=""
 say() { printf '%s\n' "$*"; }
 
 say "== Lua syntax"
-for file in GuildLoginMute/*.lua; do
+for file in GuildLoginHush/*.lua; do
   if luajit -bl "$file" >/dev/null; then say "  ok    $file"; else say "  FAIL  $file"; fail=1; fi
 done
-if grep -nE '\bgoto\b|::[A-Za-z_][A-Za-z0-9_]*::' GuildLoginMute/*.lua; then
+if grep -nE '\bgoto\b|::[A-Za-z_][A-Za-z0-9_]*::' GuildLoginHush/*.lua; then
   say "  FAIL  goto or a label: Lua 5.2 syntax the client does not have"; fail=1
 else
   say "  ok    no goto or labels"
 fi
 
 say "== TOC file"
-listed=$(grep -v '^##' GuildLoginMute/GuildLoginMute.toc | grep -v '^#' | sed '/^$/d' | sort)
-present=$(cd GuildLoginMute && ls *.lua | sort)
+listed=$(grep -v '^##' GuildLoginHush/GuildLoginHush.toc | grep -v '^#' | sed '/^$/d' | sort)
+present=$(cd GuildLoginHush && ls *.lua | sort)
 if [ "$listed" = "$present" ]; then
   say "  ok    TOC lists exactly the Lua files on disk"
 else
-  say "  FAIL  TOC file list and GuildLoginMute/*.lua differ"; fail=1
+  say "  FAIL  TOC file list and GuildLoginHush/*.lua differ"; fail=1
 fi
 
 say "== every API the addon uses exists in the Forever client"

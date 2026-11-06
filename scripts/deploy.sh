@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Copy the GuildLoginMute addon folder into a WoW Forever client on a Windows machine reachable
+# Copy the GuildLoginHush addon folder into a WoW Forever client on a Windows machine reachable
 # over ssh. Files are streamed with tar, so the game can keep running; a brand-new addon is
 # picked up at the character selection screen, a .toc change needs a client restart, and a
 # Lua-only change takes /reload.
@@ -15,7 +15,7 @@ set -euo pipefail
 HOST="${1:-mizepc}"
 ADDONS_DIR="${2:-C:\\Program Files (x86)\\World of Warcraft\\_forever_\\Interface\\AddOns}"
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-ADDON_NAME="GuildLoginMute"
+ADDON_NAME="GuildLoginHush"
 
 for arg in "$HOST" "$ADDONS_DIR"; do
   if [[ "$arg" == *[\"\'\$\`\;\&\|]* ]]; then

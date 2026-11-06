@@ -1,4 +1,4 @@
-# WoW Forever Guild Login Mute
+# WoW Forever Guild Login Hush
 
 Quiets guild logins in the World of Warcraft: Forever client (build 1.60.x, interface 16001).
 Three settings, each on its own:
@@ -7,8 +7,8 @@ Three settings, each on its own:
 - hide the "`Name has gone offline.`" chat line about guild members;
 - mute the sound the game plays when someone comes online.
 
-All three are on by default. `/glm`, the addons button by the minimap, and Esc > Options >
-AddOns > Guild Login Mute open the settings page. Settings are saved per account.
+All three are on by default. `/glh`, the addons button by the minimap, and Esc > Options >
+AddOns > Guild Login Hush open the settings page. Settings are saved per account.
 
 The game's own Guild Member Alert setting (Esc > Options > Social) turns both lines off together;
 this addon is for choosing one line, the other, or the sound separately.
@@ -17,11 +17,11 @@ this addon is for choosing one line, the other, or the sound separately.
 
 | Command | Effect |
 |---|---|
-| `/glm` | Open the settings |
-| `/glm online [on\|off]` | Hide (or show) "has come online" lines about guild members |
-| `/glm offline [on\|off]` | Hide (or show) "has gone offline" lines about guild members |
-| `/glm sound [on\|off]` | Mute (or unmute) the login sound |
-| `/glm status` | Show the current settings |
+| `/glh` | Open the settings |
+| `/glh online [on\|off]` | Hide (or show) "has come online" lines about guild members |
+| `/glh offline [on\|off]` | Hide (or show) "has gone offline" lines about guild members |
+| `/glh sound [on\|off]` | Mute (or unmute) the login sound |
+| `/glh status` | Show the current settings |
 
 Without `on` or `off`, the command flips the setting.
 
@@ -61,10 +61,11 @@ the sound back.
 
 ## Install
 
-Copy the `GuildLoginMute` folder into the Forever client's AddOns directory:
+Get the zip from the [GitHub releases](https://github.com/TheMizeGuy/WowForeverGuildLoginHush/releases)
+or from CurseForge, and copy the `GuildLoginHush` folder into the Forever client's AddOns directory:
 
 ```
-C:\Program Files (x86)\World of Warcraft\_forever_\Interface\AddOns\GuildLoginMute
+C:\Program Files (x86)\World of Warcraft\_forever_\Interface\AddOns\GuildLoginHush
 ```
 
 A brand-new addon is picked up at the character selection screen, not by `/reload`: log out to
@@ -94,5 +95,5 @@ client plays and that the settings page lays out as expected.
 Bump `## Version` in the `.toc`, then build the zip with the addon folder at its root:
 
 ```
-mkdir -p dist && zip -r -X dist/GuildLoginMute-<version>.zip GuildLoginMute -x '*.DS_Store' -x '*/._*'
+mkdir -p dist && zip -r -X dist/GuildLoginHush-<version>.zip GuildLoginHush -x '*.DS_Store' -x '*/._*'
 ```
